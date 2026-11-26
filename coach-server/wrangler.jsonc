@@ -1,0 +1,14 @@
+{
+  "name": "bowling-tracker-coach",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-01",
+  "vars": {
+    "ALLOWED_ORIGIN": "https://thebeckercreative.github.io",
+    "OPENAI_MODEL": "gpt-4.1-mini"
+  },
+  "ratelimits": [{
+    "name": "COACH_LIMITER",
+    "namespace_id": "1001",
+    "simple": { "limit": 6, "period": 60 }
+  }]
+}

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';import worker from '../coach-server/worker.mjs';import Coach from '../coach.js';
+const context=Coach.buildContext({shots:[]},{game:1,frame:1,lane:3,ballName:'Crux Prime',feet:20,target:13});
+const env={OPENAI_API_KEY:'server-only-test-key',COACH_ACCESS_TOKEN:'private-test-token',COACH_LIMITER:{limit:async()=>({success:true})}};
+const request=(body={context,question:''},headers={},method='POST')=>new Request('https://worker.test/coach',{method,headers:{Origin:'https://thebeckercreative.github.io',Authorization:'Bearer private-test-token','Content-Type':'application/json',...headers},...(method==='POST'?{body:JSON.stringify(body)}:{})});
+assert.equal((await worker.fetch(request(),{})).status,503);
+assert.equal((await worker.fetch(request(undefined,{Origin:'https://evil.test'}),env)).status,403);
+assert.equal((await worker.fetch(request(undefined,{Authorization:'Bearer wrong'}),env)).status,401);
+assert.equal((await worker.fetch(request(),{...env,COACH_LIMITER:{limit:async()=>({success:false})}})).status,429);
+assert.equal((await worker.fetch(request({context,question:'x'.repeat(501)}),env)).status,400);
+assert.equal((await worker.fetch(request({context,question:'x'.repeat(49000)}),env)).status,400);
+assert.equal((await worker.fetch(request({context:{...context,current:{...context.current,lane:0}},question:''}),env)).status,400);
+assert.equal((await worker.fetch(request(undefined,{},'OPTIONS'),env)).status,204);
+let calls=0;globalThis.fetch=async(url,init)=>{calls++;assert.equal(url,'https://api.openai.com/v1/responses');let body=JSON.parse(init.body);assert.equal(body.store,false);assert.ok(init.headers.Authorization.includes('server-only'));assert.equal(body.text.format.strict,true);return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({title:'Start simple',observation:'No shots yet',action:'Record a first ball',question:'What are you seeing?',confidence:'High'})}]}]})};
+let response=await worker.fetch(request(),env);assert.equal(response.status,200);let result=await response.json();assert.equal(result.report.confidence,'Low');assert.equal(calls,1);assert.ok(!JSON.stringify(result).includes('server-only'));assert.equal(response.headers.get('Cache-Control'),'no-store');
+globalThis.fetch=async()=>Response.json({error:'secret provider diagnostic'},{status:500});response=await worker.fetch(request(),env);assert.equal(response.status,502);assert.ok(!(await response.text()).includes('diagnostic'));
+console.log('PASS: AI server authorization, origin checks, size/shape validation, rate limits, structured request, confidence cap and private failures (mocked provider)');

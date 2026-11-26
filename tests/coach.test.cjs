@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');const Coach=require('../coach.js');
+const current={game:2,frame:5,lane:4,ballName:'Crux Prime',feet:20,target:13};
+const shot=(overrides={})=>({game:2,frame:1,ball:1,lane:4,ballName:'Crux Prime',feet:20,target:13,actual:13,reaction:'High',execution:'On target',speedTag:'Normal',speed:null,left:[4],...overrides});
+const context=(shots,c=current)=>Coach.buildContext({shots},c);
+assert.equal(Coach.analyze(context([])).kind,'insufficient');
+let c=context([shot(),shot({frame:3})]);let r=Coach.analyze(c);assert.equal(r.kind,'adjust');assert.deepEqual(r.move,{feet:21,target:13});assert.match(r.action,/LEFT/);assert.equal(r.confidence,'Moderate');
+assert.equal(Coach.analyze(context([shot(),shot({frame:3,speedTag:'Slow'})])).kind,'speed');
+assert.equal(Coach.analyze(context([shot({speedTag:null}),shot({frame:3,speedTag:null})])).kind,'check');
+assert.equal(Coach.analyze(context([shot({actual:17,execution:'Clean'}),shot({frame:3,actual:17,execution:'Clean'})])).kind,'execution');
+assert.equal(Coach.analyze(context([shot({reaction:'Flush'}),shot({frame:3,reaction:'Flush'})])).kind,'hold');
+assert.equal(Coach.analyze(context([shot({reaction:'Light'}),shot({frame:3,reaction:'No recovery'})])).kind,'light');
+assert.equal(Coach.analyze(context([shot(),shot({frame:2,lane:3})])).kind,'observe');
+assert.equal(Coach.analyze(context([shot(),shot({frame:2,ball:2})])).kind,'observe');
+assert.equal(Coach.analyze(context([shot(),shot({frame:3,ball:2}),shot({frame:4,ball:3})])).comparisonCount,1);
+assert.equal(Coach.analyze(context([shot(),shot({frame:2,ballName:'Hustle',lane:3}),shot({frame:3})])).kind,'observe');
+assert.equal(Coach.analyze(context([shot(),shot({frame:3,feet:22})],{...current,feet:22})).kind,'observe');
+assert.equal(Coach.analyze(context([shot(),shot({frame:3})],{...current,feet:22})).kind,'changed');
+assert.equal(Coach.analyze(context([shot({actual:null}),shot({frame:3,actual:null})])).kind,'insufficient');
+assert.equal(Coach.analyze(context([shot({speedTag:null,execution:'Slow'}),shot({frame:3,speedTag:null})])).kind,'speed');
+assert.equal(Coach.analyze(context([shot({feet:39}),shot({frame:3,feet:39})],{...current,feet:39})).move,null);
+// No mutation and no private notes in transmitted context.
+let original=[shot({notes:'private note'})],before=JSON.stringify(original);assert.ok(!JSON.stringify(context(original)).includes('private note'));assert.equal(JSON.stringify(original),before);
+console.log('PASS: lane/ball/line isolation, execution vs reaction, unknown speed, fill balls, limited evidence, arithmetic boundaries and data minimization');
